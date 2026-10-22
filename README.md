@@ -9,8 +9,6 @@ npm install
 npm run dev
 ```
 
-The site runs at http://localhost:3000.
-
 ## Build
 
 ```bash
