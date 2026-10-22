@@ -1,0 +1,24 @@
+/* TEAM */
+
+  Developer & author: Sameeksha Sankpal
+  Contact: sameekshasankpal [at] gmail.com
+  Location: Mumbai, India
+
+
+/* SITE */
+
+  Built with: Next.js, React, TypeScript, Tailwind CSS, GSAP
+  Fonts: Source Serif 4, JetBrains Mono
+  Hosted on: GitHub Pages
+  Standards: HTML5, CSS3
+  Handcrafted, no trackers, no cookies.
+
+
+/* NOTE */
+
+  The noise in the quantum generator is not a bug that survived review.
+  It is the privacy mechanism.
+
+      ε = ln( (3 − 2p) / 2p )
+
+  Thanks for looking. Most people don't.

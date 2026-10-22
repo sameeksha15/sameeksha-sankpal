@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+@theme {
+  /* Warm-dark palette from the design */
+  --color-ink: #15120e;
+  --color-ink-raised: #1c1813;
+  --color-cream: #e9e1d3;
+  --color-bright: #f2ead9;
+  --color-gold: #d8a854;
+  --color-gold-bright: #e8c079;
+  --color-sand: #cfc4ad;
+  --color-parchment: #c9bda6;
+  --color-linen: #c7bca6;
+  --color-khaki: #b6ab93;
+  --color-stone: #9d937f;
+  --color-taupe: #8a836f;
+  --color-faint: #6f6858;
+  --color-dust: #4a4438;
+
+  --font-serif: var(--font-serif-face), Georgia, serif;
+  --font-mono: var(--font-mono-face), ui-monospace, monospace;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-cream);
+  font-family: var(--font-serif);
+}
+
+::selection {
+  background: rgb(216 168 84 / 0.25);
+}
+
+input[type="range"] {
+  accent-color: var(--color-gold);
+}
+
+/* The browser's own search chrome (inset border, blue clear button) is drawn
+   in system colours, so it is removed in favour of the page's own affordances. */
+input[type="search"] {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+:focus-visible {
+  outline: 1px solid rgb(216 168 84 / 0.6);
+  outline-offset: 3px;
+}
+
+/* Long-form article body rendered from markdown. Mirrors the typography of
+   the hand-built pages: serif prose, monospace for anything mechanical. */
+.prose-quantum {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1.9;
+  color: var(--color-sand);
+}
+
+.prose-quantum > * + * {
+  margin-top: 1.15em;
+}
+
+.prose-quantum h2 {
+  margin-top: 2.4em;
+  font-size: 28px;
+  line-height: 1.3;
+  color: var(--color-bright);
+}
+
+.prose-quantum h3 {
+  margin-top: 1.9em;
+  font-size: 21px;
+  line-height: 1.35;
+  color: var(--color-cream);
+}
+
+.prose-quantum h2 + *,
+.prose-quantum h3 + * {
+  margin-top: 0.7em;
+}
+
+.prose-quantum strong {
+  font-weight: 500;
+  color: var(--color-bright);
+}
+
+.prose-quantum em {
+  font-style: italic;
+}
+
+.prose-quantum a {
+  color: var(--color-gold);
+  text-decoration: none;
+  border-bottom: 1px solid rgb(216 168 84 / 0.35);
+}
+
+.prose-quantum a:hover {
+  color: var(--color-gold-bright);
+}
+
+.prose-quantum ul,
+.prose-quantum ol {
+  padding-left: 1.4em;
+}
+
+.prose-quantum ul {
+  list-style: disc;
+}
+
+.prose-quantum ol {
+  list-style: decimal;
+}
+
+.prose-quantum li::marker {
+  color: var(--color-gold);
+}
+
+.prose-quantum li + li {
+  margin-top: 0.5em;
+}
+
+.prose-quantum blockquote {
+  margin-top: 2em;
+  padding: 0.2em 0 0.2em 1.5em;
+  border-left: 2px solid rgb(216 168 84 / 0.4);
+  font-size: 17px;
+  line-height: 1.8;
+  color: var(--color-khaki);
+}
+
+.prose-quantum blockquote strong {
+  color: var(--color-gold);
+}
+
+.prose-quantum code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: rgb(216 168 84 / 0.08);
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: #e0c58e;
+}
+
+/* Equations and other display blocks */
+.prose-quantum pre {
+  margin-top: 2em;
+  overflow-x: auto;
+  background: var(--color-ink-raised);
+  border: 1px solid rgb(216 168 84 / 0.14);
+  border-radius: 8px;
+  padding: 18px 24px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-parchment);
+}
+
+.prose-quantum pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.prose-quantum hr {
+  margin: 3em 0;
+  border: 0;
+  border-top: 1px solid rgb(216 168 84 / 0.14);
+}
+
+/* Tables scroll inside their own box rather than widening the page. */
+.prose-quantum table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--color-parchment);
+}
+
+.prose-quantum th,
+.prose-quantum td {
+  border: 1px solid rgb(216 168 84 / 0.14);
+  padding: 9px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.prose-quantum th {
+  color: var(--color-gold);
+  font-weight: 500;
+  white-space: nowrap;
+}
