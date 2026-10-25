@@ -21,6 +21,9 @@ export const site = {
   // after cal.com/. Change it here and both the embed and the fallback
   // link follow.
   cal: "sameeksha-sankpal-b5iwgv/15min",
+  // Google Search Console verification, the content="…" value of the "HTML
+  // tag" method. The meta tag is only emitted once this is filled in.
+  googleVerification: "dDdw4frSfogi656Fqd7IAKNGDLmcwFsF1X2Ztf3x9V4",
   // Buttondown username, the part of the URL after buttondown.com/. The blog's
   // subscribe form posts to it. While it is empty the form is hidden and the
   // panel offers the RSS feed on its own, so the page is never left with a

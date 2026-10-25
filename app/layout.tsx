@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import NoCloning from "@/components/NoCloning";
+import { absoluteUrl, site } from "@/lib/site";
 import "./globals.css";
 
 const serif = Source_Serif_4({
@@ -17,12 +18,20 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(absoluteUrl("/")),
   title: {
-    default: "Sameeksha Sankpal",
-    template: "%s · Sameeksha Sankpal",
+    default: site.name,
+    template: `%s · ${site.name}`,
   },
   description:
-    "Portfolio of Sameeksha Sankpal: quantum machine learning, differential privacy, and the uses of noise.",
+    "Sameeksha Sankpal, a final-year Information Technology (Honours in Research) student at V.E.S. Institute of Technology, Mumbai, working on quantum computing and machine learning.",
+  // Left without a title or url so each page's own title and address are
+  // what a shared link shows, rather than every page posing as the homepage.
+  openGraph: { type: "website", siteName: site.name, locale: "en_US" },
+  twitter: { card: "summary" },
+  verification: site.googleVerification
+    ? { google: site.googleVerification }
+    : undefined,
 };
 
 export default function RootLayout({
