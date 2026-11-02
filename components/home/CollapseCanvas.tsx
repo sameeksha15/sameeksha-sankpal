@@ -5,13 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { site } from "@/lib/site";
 
+// Positions are fractions of the field. Phones get their own arrangement:
+// squeezed into a narrow field, the wide one packs Research against About and
+// Projects, so there the words spread vertically instead.
 const SECTIONS = [
   {
     id: "about",
     label: "About",
     href: "/about",
     italic: true,
-    pos: [0.26, 0.44],
+    wide: [0.26, 0.44],
+    narrow: [0.27, 0.46],
     desc: "The person behind the work.",
   },
   {
@@ -19,7 +23,8 @@ const SECTIONS = [
     label: "Research",
     href: "/research",
     italic: false,
-    pos: [0.5, 0.34],
+    wide: [0.5, 0.34],
+    narrow: [0.5, 0.2],
     desc: "Quantum machine learning, differential privacy, and the uses of noise.",
   },
   {
@@ -27,7 +32,8 @@ const SECTIONS = [
     label: "Projects",
     href: "/projects",
     italic: true,
-    pos: [0.73, 0.44],
+    wide: [0.73, 0.44],
+    narrow: [0.73, 0.46],
     desc: "Things built to test an idea.",
   },
   {
@@ -35,19 +41,22 @@ const SECTIONS = [
     label: "Blog",
     href: "/blog",
     italic: false,
-    pos: [0.48, 0.63],
+    wide: [0.48, 0.63],
+    narrow: [0.5, 0.72],
     desc: "Notes and essays, thinking out loud.",
   },
 ] as const;
 
 const PARTICLE_COUNT = 440;
-const IDLE_MEASUREMENT =
-  "⟨ψ⟩ = superposition of every version of me · move to measure";
+const IDLE_MEASUREMENT = "⟨ψ⟩ = superposition of every version of me";
 
-// Blog sits close under Research on a short canvas, so the distribution can
-// never get very peaked; the temperature and commit threshold are set from
-// the probability actually reached when the cursor is on a word, not guessed.
-const TEMP = 90; // softmax temperature, in px
+// The temperature and commit threshold are set from the probability actually
+// reached with the pointer on a word, at the field width the layout was tuned
+// for. Orbits and temperature both scale with the field, so a phone, where the
+// words sit half as far apart, sees the same distribution rather than a
+// flatter one that never crosses the threshold.
+const TEMP = 90; // softmax temperature, in px at full width
+const FULL_WIDTH = 800; // field width TEMP and the orbits were tuned at
 const SMOOTH = 0.07; // temporal damping on the probabilities
 const COMMIT = 0.58; // probability at which a section counts as measured
 const IDLE_P = 1 / SECTIONS.length;
@@ -58,15 +67,21 @@ const ZENO_REPEATS = 3;
 const ZENO_WINDOW_MS = 2500;
 const ZENO_THAW_MS = 2000;
 
+// Touch: how far a finger may move and still count as a tap, and how close to
+// a word a tap must land to measure it.
+const TAP_SLOP = 10; // px
+const TAP_REACH = 36; // px beyond the word's box
+
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 function smoothstep(edge0: number, edge1: number, x: number) {
   const t = clamp01((x - edge0) / (edge1 - edge0));
   return t * t * (3 - 2 * t);
 }
+const oneHot = (k: number) => SECTIONS.map((_, i) => (i === k ? 1 : 0));
 
 /**
- * The homepage navigation. Four sections sit in superposition; the cursor
+ * The homepage navigation. Four sections sit in superposition and the pointer
  * measures them.
  *
  * Each section's clarity is a continuous function of its own probability, and
@@ -74,7 +89,14 @@ function smoothstep(edge0: number, edge1: number, x: number) {
  * so there is no boundary for the state to flip across and no flicker. Moving
  * between two sections reads as both being partly present, which is what a
  * superposition actually looks like. A section is only "measured" once its
- * probability passes a threshold, and only then is it clickable.
+ * probability passes a threshold, and only then can it be entered.
+ *
+ * A mouse measures by proximity. A finger cannot hover, so touch measures in
+ * the two ways a physicist would: held on the glass it stands in for the
+ * cursor (continuous measurement), and a tap is a projective measurement that
+ * leaves the state collapsed onto the word it hit. Measuring a collapsed state
+ * again returns the same outcome with certainty, so a second tap on the same
+ * word is what enters it.
  */
 export default function CollapseCanvas() {
   const router = useRouter();
@@ -82,7 +104,7 @@ export default function CollapseCanvas() {
   const linkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const descRef = useRef<HTMLDivElement>(null);
   const measRef = useRef<HTMLDivElement>(null);
-  // Latest measured section, read by the canvas click handler (−1 = none).
+  // Latest measured section, read by the input handlers (−1 = none).
   const targetRef = useRef(-1);
 
   useEffect(() => {
@@ -103,6 +125,8 @@ export default function CollapseCanvas() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     let w = canvas.clientWidth;
     let h = canvas.clientHeight;
+    let scale = 1;
+    let anchors: [number, number][] = [];
     const fit = () => {
       const rect = canvas.getBoundingClientRect();
       canvas.width = Math.max(1, Math.round(rect.width * dpr));
@@ -110,6 +134,12 @@ export default function CollapseCanvas() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       w = canvas.clientWidth;
       h = canvas.clientHeight;
+      scale = Math.max(0.45, Math.min(1, w / FULL_WIDTH));
+      // The words are placed by CSS, which switches layout at a breakpoint,
+      // so the field reads their positions back rather than keeping a copy.
+      anchors = linkRefs.current.map((el) =>
+        el ? [el.offsetLeft, el.offsetTop] : [0, 0],
+      );
     };
     fit();
     const observer = new ResizeObserver(fit);
@@ -127,26 +157,97 @@ export default function CollapseCanvas() {
     // Damped probabilities: the visual state actually rendered.
     const probs = SECTIONS.map(() => IDLE_P);
 
+    // Pointer position in field coordinates, while something is measuring.
     let mx: number | null = null;
     let my: number | null = null;
-    const onPointerMove = (e: PointerEvent) => {
+    let touch = false; // whether the latest input was a finger
+    let pinned = -1; // section a tap or slide left collapsed
+    let press: { x: number; y: number } | null = null; // finger currently down
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+
+    const track = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
       mx = e.clientX - rect.left;
       my = e.clientY - rect.top;
     };
-    const onPointerLeave = () => {
+
+    // The word under a tap, judged by its box rather than its centre: a long
+    // word like Research reaches nearer its neighbour's centre than its own.
+    const sectionAt = (x: number, y: number) => {
+      let hit = -1;
+      let nearest = TAP_REACH;
+      linkRefs.current.forEach((el, i) => {
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const d = Math.hypot(
+          Math.max(r.left - x, 0, x - r.right),
+          Math.max(r.top - y, 0, y - r.bottom),
+        );
+        if (d < nearest) {
+          hit = i;
+          nearest = d;
+        }
+      });
+      return hit;
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (!e.isPrimary) return;
+      touch = e.pointerType !== "mouse";
+      if (touch) press = { x: e.clientX, y: e.clientY };
+      track(e);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!e.isPrimary) return;
+      if (e.pointerType === "mouse") {
+        touch = false;
+        pinned = -1;
+        track(e);
+      } else if (press) {
+        track(e); // a finger only measures while it is on the glass
+      }
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!e.isPrimary || !press) return;
+      const slid =
+        Math.hypot(e.clientX - press.x, e.clientY - press.y) > TAP_SLOP;
+      press = null;
+      mx = null;
+      my = null;
+      if (slid) {
+        pinned = targetRef.current; // a slide leaves what it ended on measured
+        return;
+      }
+      const hit = sectionAt(e.clientX, e.clientY);
+      if (hit >= 0 && hit === pinned) {
+        router.push(SECTIONS[hit].href);
+      } else {
+        pinned = hit; // −1, an empty spot, lets it relax into superposition
+      }
+    };
+
+    const onPointerEnd = () => {
+      press = null;
       mx = null;
       my = null;
     };
-    const container = canvas.parentElement ?? canvas;
-    container.addEventListener("pointermove", onPointerMove);
-    container.addEventListener("pointerdown", onPointerMove);
-    container.addEventListener("pointerleave", onPointerLeave);
 
-    // Navigate to whatever section is currently measured, from anywhere on
-    // the canvas; no need to move the cursor onto the word itself.
+    const container = canvas.parentElement ?? canvas;
+    container.addEventListener("pointerdown", onPointerDown);
+    container.addEventListener("pointermove", onPointerMove);
+    container.addEventListener("pointerup", onPointerUp);
+    container.addEventListener("pointercancel", onPointerEnd);
+    container.addEventListener("pointerleave", onPointerEnd);
+
+    // Mouse: navigate to whatever section is measured, from anywhere on the
+    // canvas; no need to move onto the word itself. Touch enters on release,
+    // above, so the click that follows a tap is ignored.
     const onCanvasClick = () => {
-      if (targetRef.current >= 0) router.push(SECTIONS[targetRef.current].href);
+      if (!touch && targetRef.current >= 0) {
+        router.push(SECTIONS[targetRef.current].href);
+      }
     };
     canvas.addEventListener("click", onCanvasClick);
 
@@ -159,8 +260,6 @@ export default function CollapseCanvas() {
     let lastMeasuredAt = 0;
 
     const draw = () => {
-      const anchors = SECTIONS.map((s) => [s.pos[0] * w, s.pos[1] * h]);
-
       // Keyboard focus measures the state exactly like cursor proximity does.
       const focusIdx = linkRefs.current.findIndex(
         (el) => el && el === document.activeElement,
@@ -169,15 +268,18 @@ export default function CollapseCanvas() {
       // Target distribution for this frame.
       let want: number[];
       if (focusIdx >= 0) {
-        want = SECTIONS.map((_, i) => (i === focusIdx ? 1 : 0));
+        want = oneHot(focusIdx);
       } else if (mx != null && my != null) {
         const cx = mx;
         const cy = my;
+        const temp = TEMP * scale;
         const ex = anchors.map(([ax, ay]) =>
-          Math.exp(-Math.hypot(cx - ax, cy - ay) / TEMP),
+          Math.exp(-Math.hypot(cx - ax, cy - ay) / temp),
         );
         const sum = ex.reduce((a, b) => a + b, 0) || 1;
         want = ex.map((v) => v / sum);
+      } else if (pinned >= 0) {
+        want = oneHot(pinned);
       } else {
         want = SECTIONS.map(() => IDLE_P);
       }
@@ -211,6 +313,8 @@ export default function CollapseCanvas() {
           zenoStamps.push(now);
           lastMeasuredAt = now;
           if (zenoStamps.length >= ZENO_REPEATS) zeno = true;
+          // On a phone the collapse is felt as well as seen, where supported.
+          if (touch) navigator.vibrate?.(8);
         }
         prevCommitted = committed;
       }
@@ -225,7 +329,7 @@ export default function CollapseCanvas() {
       for (const p of particles) {
         const amp = probs[p.home];
         // A cluster tightens and brightens as its own amplitude grows.
-        const spread = 1 - 0.62 * amp;
+        const spread = (1 - 0.62 * amp) * scale;
         const [ax, ay] = anchors[p.home];
         const tx = ax + Math.cos(p.a + t * p.sp) * (46 + p.r * 112) * spread;
         const ty = ay + Math.sin(p.a + t * p.sp) * (32 + p.r * 82) * spread;
@@ -251,7 +355,10 @@ export default function CollapseCanvas() {
         el.style.transform =
           `translate(-50%,-50%) translate(${driftX.toFixed(2)}px,${driftY.toFixed(2)}px) ` +
           `scale(${(0.96 + 0.13 * amp).toFixed(3)})`;
-        el.style.pointerEvents = measured && i === lead ? "auto" : "none";
+        // Touch enters through the tap handler, so the link itself stays
+        // inert there and a tap can never navigate twice.
+        el.style.pointerEvents =
+          !touch && measured && i === lead ? "auto" : "none";
         if (arrow) {
           arrow.style.opacity = String(smoothstep(COMMIT - 0.08, COMMIT + 0.1, amp));
         }
@@ -264,12 +371,14 @@ export default function CollapseCanvas() {
         if (show > 0) descRef.current.textContent = SECTIONS[lead].desc;
         descRef.current.style.opacity = String(show);
 
-        if (mx == null && focusIdx < 0) {
-          measRef.current.textContent = IDLE_MEASUREMENT;
+        if (mx == null && focusIdx < 0 && pinned < 0) {
+          const verb = touch || coarse ? "tap" : "move";
+          measRef.current.textContent = `${IDLE_MEASUREMENT} · ${verb} to measure`;
         } else if (frozen) {
           measRef.current.textContent = `⟨zeno⟩ = ${SECTIONS[lead].id}   ·   a watched state never evolves`;
         } else if (measured) {
-          measRef.current.textContent = `⟨measured⟩ = ${SECTIONS[lead].id}`;
+          const next = touch && mx == null ? "  ·  tap again to enter" : "";
+          measRef.current.textContent = `⟨measured⟩ = ${SECTIONS[lead].id}${next}`;
         } else {
           // Still in superposition: show the live amplitudes.
           const terms = probs
@@ -288,16 +397,20 @@ export default function CollapseCanvas() {
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
+      container.removeEventListener("pointerdown", onPointerDown);
       container.removeEventListener("pointermove", onPointerMove);
-      container.removeEventListener("pointerdown", onPointerMove);
-      container.removeEventListener("pointerleave", onPointerLeave);
+      container.removeEventListener("pointerup", onPointerUp);
+      container.removeEventListener("pointercancel", onPointerEnd);
+      container.removeEventListener("pointerleave", onPointerEnd);
       canvas.removeEventListener("click", onCanvasClick);
     };
   }, [router]);
 
   return (
     <>
-      <div className="relative mt-2 min-h-[480px] flex-1">
+      {/* touch-none: a finger dragging here measures, so it must not also
+          scroll or zoom the page underneath. */}
+      <div className="relative mt-2 min-h-[280px] flex-1 touch-none sm:min-h-[480px]">
         <canvas
           ref={canvasRef}
           aria-hidden="true"
@@ -310,14 +423,18 @@ export default function CollapseCanvas() {
             ref={(el) => {
               linkRefs.current[i] = el;
             }}
-            className="absolute whitespace-nowrap text-center text-[#f3ead9] no-underline"
-            style={{
-              left: `${s.pos[0] * 100}%`,
-              top: `${s.pos[1] * 100}%`,
-              transform: "translate(-50%,-50%)",
-              // Only clarity transitions; position is driven per frame.
-              transition: "opacity .45s ease, filter .45s ease",
-            }}
+            className="absolute top-(--narrow-y) left-(--narrow-x) whitespace-nowrap text-center text-[#f3ead9] no-underline sm:top-(--wide-y) sm:left-(--wide-x)"
+            style={
+              {
+                "--wide-x": `${s.wide[0] * 100}%`,
+                "--wide-y": `${s.wide[1] * 100}%`,
+                "--narrow-x": `${s.narrow[0] * 100}%`,
+                "--narrow-y": `${s.narrow[1] * 100}%`,
+                transform: "translate(-50%,-50%)",
+                // Only clarity transitions; position is driven per frame.
+                transition: "opacity .45s ease, filter .45s ease",
+              } as React.CSSProperties
+            }
           >
             <span
               className={`block font-serif text-[38px] sm:text-[54px] ${s.italic ? "italic" : ""}`}
@@ -340,7 +457,7 @@ export default function CollapseCanvas() {
             two-line description then never pushes the page down on hover. The
             visible one sits on the bottom line, so its gap to the line below
             stays the same whichever section is showing. */}
-        <div className="mx-auto grid max-w-[600px] font-serif text-[22px] italic leading-[1.5] text-balance text-[#e6d9c2]">
+        <div className="mx-auto grid max-w-[600px] font-serif text-[18px] italic leading-[1.5] text-balance text-[#e6d9c2] sm:text-[22px]">
           {SECTIONS.map((s) => (
             <span
               key={s.id}
@@ -357,11 +474,13 @@ export default function CollapseCanvas() {
             &nbsp;
           </div>
         </div>
+        {/* Two lines are held on a phone, where some of these wrap and others
+            do not, so the line beneath never jumps as the state changes. */}
         <div
           ref={measRef}
-          className="mt-4 font-mono text-[13px] tracking-[.05em] text-gold"
+          className="mt-4 min-h-[2lh] font-mono text-[12px] tracking-[.05em] text-balance text-gold sm:min-h-0 sm:text-[13px]"
         >
-          {IDLE_MEASUREMENT}
+          {IDLE_MEASUREMENT} · move to measure
         </div>
       </div>
     </>
