@@ -70,8 +70,8 @@ export default function Subscribe({
         noValidate
         className={
           variant === "panel"
-            ? "mt-5 flex max-w-[460px] flex-wrap items-center gap-x-4 gap-y-3"
-            : "flex min-w-[260px] flex-1 flex-wrap items-center gap-x-3 gap-y-3"
+            ? "mt-5 flex max-w-[460px] items-center gap-x-4"
+            : "flex w-full items-center gap-x-3 sm:w-auto sm:min-w-[260px] sm:flex-1"
         }
       >
         <label htmlFor={`${uid}-email`} className="sr-only">
@@ -86,7 +86,7 @@ export default function Subscribe({
           placeholder="you@example.com"
           onChange={() => state === "invalid" && setState("idle")}
           aria-invalid={state === "invalid"}
-          className={`min-w-[180px] flex-1 border-b bg-transparent pb-[6px] font-mono text-[13px] text-cream transition-colors placeholder:text-faint focus:border-gold/60 focus:outline-none ${
+          className={`min-w-0 flex-1 border-b bg-transparent pb-[6px] font-mono text-[13px] text-cream transition-colors placeholder:text-faint focus:border-gold/60 focus:outline-none ${
             state === "invalid" ? "border-[#c2704f]" : "border-gold/25"
           }`}
         />
