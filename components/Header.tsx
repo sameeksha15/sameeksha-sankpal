@@ -16,7 +16,9 @@ export default function Header() {
       >
         Sameeksha&nbsp;Sankpal
       </Link>
-      <nav className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs font-medium tracking-[.04em]">
+      {/* Below md the links take a full-width row of their own, spread
+          evenly, rather than wrapping a leftover link onto a separate line. */}
+      <nav className="flex w-full justify-between font-mono text-[11px] font-medium md:w-auto md:justify-start md:gap-x-5 md:text-xs md:tracking-[.04em]">
         {navItems.map(({ label, href }) => (
           <Link
             key={href}

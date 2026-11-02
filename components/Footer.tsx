@@ -17,7 +17,9 @@ export default function Footer({
       {variant === "timezone" ? (
         <span>IST &middot; UTC+5:30</span>
       ) : (
-        <span className="flex flex-wrap gap-5">
+        // On a phone the links run the full width as their own row, matching
+        // the navbar, rather than wrapping under the location at the left.
+        <span className="flex w-full justify-between sm:w-auto sm:justify-start sm:gap-5">
           <a
             href={`mailto:${site.email}`}
             className="text-linen no-underline transition-colors hover:text-gold"
